@@ -90,11 +90,11 @@ class Player():
 
         layer_sizes = None
         if mode == 'gravity':
-            layer_sizes = [3, 20, 1]
+            layer_sizes = [6, 20, 1]
         elif mode == 'helicopter':
-            layer_sizes = [3, 20, 1]
+            layer_sizes = [5, 20, 1]
         elif mode == 'thrust':
-            layer_sizes = [3, 20, 1]
+            layer_sizes = [6, 20, 1]
         return layer_sizes
 
     
@@ -105,25 +105,23 @@ class Player():
         # box_lists: an array of `BoxList` objects
         # agent_position example: [600, 250]
         # velocity example: 7
-        
-        if True: # mode != "thrust" :
-            
-            input_vec = []
-            if len(box_lists)>=1:
-                first_box_list = box_lists[0]
-                vertical_dis_first = (agent_position[1] - first_box_list.gap_mid)/CONFIG['HEIGHT']
-                horizontal_dis_first = (agent_position[0] - first_box_list.x)/CONFIG['WIDTH']
-                input_vec.extend([vertical_dis_first, horizontal_dis_first])
-                
-            else:
-                input_vec.extend([0, 1])
-            input_vec.append(velocity/10)
 
-            input_vec = np.array(input_vec)
-            input_vec = input_vec.reshape((-1,1))
+        if mode == "helicopter":
+            input_vec =None
+            if len(box_lists) >= 2:
+                first_box_list, second_box_list = box_lists[0],box_lists[1]
+                vertical_dis_first = agent_position[1] - first_box_list.gap_mid
+                vertical_dis_second = agent_position[1] - second_box_list.gap_mid
+                horizontal_dis_first = agent_position[0] - first_box_list.x
+                horizontal_dis_second = agent_position[0] - second_box_list.x
+                input_vec = np.array([vertical_dis_first/CONFIG['HEIGHT'], vertical_dis_second/CONFIG['HEIGHT'], horizontal_dis_first/CONFIG['WIDTH'], horizontal_dis_second/CONFIG['WIDTH'], velocity/10])
+                input_vec = input_vec.reshape((-1,1))
+            else:
+                input_vec = np.array([0.5, 0.5, 0.5, 0.5 ,velocity/10])
+                input_vec = input_vec.reshape((-1,1))
                 
         NN_output = self.nn.forward(input_vec)
-        if NN_output >= 0.5 :
+        if NN_output >= 0.5:
             direction = 1
         else:
             direction = -1

@@ -2,9 +2,8 @@ from player import Player
 import numpy as np
 from config import CONFIG
 import copy, random
-import pickle
+
 class Evolution():
-    num_genes = 1
 
     def __init__(self, mode):
         self.mode = mode
@@ -15,28 +14,40 @@ class Evolution():
             p.fitness = delta_xs[i]
 
     def add_gaussian_noise(self, player:Player, mean:float, standard_deviation:float):
-        player.nn.first_layer_weights_matrix += np.random.normal(mean,standard_deviation,player.nn.first_layer_weights_matrix.shape) 
-        player.nn.second_layer_weights_matrix += np.random.normal(mean,standard_deviation,player.nn.second_layer_weights_matrix.shape)
-        player.nn.b1 += np.random.normal(mean,standard_deviation,player.nn.b1.shape)
-        player.nn.b2 += np.random.normal(mean,standard_deviation,player.nn.b2.shape)
+        first_layer_weights = player.nn.first_layer_weights_matrix
+        gaussian_noise = np.random.normal(mean,standard_deviation,first_layer_weights.shape)
+        first_layer_weights += gaussian_noise
+        second_layer_weights = player.nn.second_layer_weights_matrix
+        gaussian_noise = np.random.normal(mean,standard_deviation,second_layer_weights.shape)
+        second_layer_weights += gaussian_noise
+        b1 = player.nn.b1
+        gaussian_noise = np.random.normal(mean,standard_deviation,b1.shape)
+        b1 += gaussian_noise
+        b2 = player.nn.b2
+        gaussian_noise = np.random.normal(mean,standard_deviation,b2.shape)
+        b2 += gaussian_noise
         return player
 
     def mutate(self, child):
-        if 0.8 >= np.random.uniform(0,1):
-            return self.add_gaussian_noise(child, 0.0,0.3)
-        else:
-            return child
 
+        # TODO
+        # child: an object of class `Player`
+        return self.add_gaussian_noise(child, 0.0,0.5)
 
     def q_tournement(self,players,  num_players, q):
-        chosen_list = []
-        for x in range(num_players):
-            candidates = [players[x] for x in random.sample(range(num_players), q)]
-            chosen_list.append(copy.deepcopy(sorted(candidates, key=lambda x: x.fitness, reverse=True)[0]))
-
-        return chosen_list
-
-      
+        result = []
+        for i in range(num_players):
+            batch = []
+            for j in range(q):
+                batch.append(np.random.choice(players))
+            result.append(copy.deepcopy(sorted(batch, key=lambda x: x.fitness, reverse=True)[0]))
+        return result
+        # chosen_list = []
+        # for i in range(num_players):
+        #     q_players = np.random.randint(0 ,len(players), q)
+        #     chosen_list.append(max([players[x] for x in q_players]))
+        # return chosen_list
+    
     def crossover(self, parent_players, num_players):
         children = []
         w1_row_num = parent_players[0].nn.first_layer_weights_matrix.shape[0]
@@ -53,19 +64,14 @@ class Evolution():
             child2.nn.first_layer_weights_matrix = np.concatenate((parent2.nn.first_layer_weights_matrix[:w1_row_num//2], parent1.nn.first_layer_weights_matrix[w1_row_num//2:]), axis = 0)
             child2.nn.second_layer_weights_matrix = np.concatenate((parent1.nn.second_layer_weights_matrix[:w2_row_num//2], parent2.nn.second_layer_weights_matrix[w2_row_num//2:]), axis=0)
             child2.nn.second_layer_weights_matrix = np.concatenate((parent2.nn.second_layer_weights_matrix[:w2_row_num//2], parent1.nn.second_layer_weights_matrix[w2_row_num//2:]), axis = 0)
-            child1.nn.b1 = np.concatenate((parent1.nn.b1[:b1_shape//2],parent2.nn.b1[b1_shape//2:]), axis = 0)
-            child2.nn.b1 = np.concatenate((parent2.nn.b1[:b1_shape//2],parent1.nn.b1[b1_shape//2:]), axis = 0)
-            child1.nn.b2 = np.concatenate((parent1.nn.b2[:b2_shape//2],parent2.nn.b2[b2_shape//2:]), axis = 0)
-            child2.nn.b2 = np.concatenate((parent2.nn.b2[:b2_shape//2],parent1.nn.b2[b2_shape//2:]), axis = 0)
-            children.extend([child1, child2])
+            # parent1.nn.first_layer_weights_matri = child1_w1
+            # parent1.nn.second_layer_weights_matri = child1_w2
+            # parent2.nn.first_layer_weights_matrix = child2_w1
+            # parent2.nn.first_layer_weights_matrix = child2_w2
+            children.extend([parent1, parent2])
             index += 2
         return children
 
-    # box = 2standar_deviation = 0.3 , q= 5 is best for normal situation in helicopter, gravity
-    # box =2 standar_deviation = 0.3 , q= 3 is best for crosover in helicopter
-    # box =1, standar_deviation = 0.3 , q= 10 is best for crossover in gravity
-    # box =1, standar_deviation = 0.3 , q= 10 is best for crossover in airplane
-    # box =1, standar_deviation = 0.3 , q= 10 is best for crossover in helicopter
     def generate_new_population(self, num_players, prev_players=None):
 
         # in first generation, we create random players
@@ -78,15 +84,11 @@ class Evolution():
             # num_players example: 150
             # prev_players: an array of `Player` objects
             # parents = self.roulette_wheel_selection(prev_players, num_players)
-
             # TODO (additional): a selection method other than `fitness proportionate`
-            # parents = self.q_tournement(prev_players,num_players,5)
-
+            parents = self.q_tournement(prev_players,num_players,5)
             # TODO (additional): implementing crossover
-            parents = self.q_tournement(prev_players,num_players,10)
             parents_copy = copy.deepcopy(parents)
-            parents_copy = self.crossover(parents_copy, num_players)
-            
+            # parents_copy = self.crossover(parents_copy, num_players)
             # parents_copy = copy.deepcopy(parents)
             new_players = [self.mutate(x) for x in parents_copy]
             return new_players
@@ -97,29 +99,15 @@ class Evolution():
         return list(np.random.choice(players,num_players, p=player_probabilities))
 
     def next_population_selection(self, players, num_players):
-        #plotting
-        if self.num_genes == 1:
-            generations_data = { "min":[], "max":[], "avg":[]}
-        else :
-            readed = open('generations_data.obj', 'rb') 
-            generations_data = pickle.load(readed)
-            
-        players_fitness = [p.fitness for p in players]
-        generations_data['min'].append(min(players_fitness))
-        generations_data['max'].append(max(players_fitness))
-        generations_data['avg'].append(sum(players_fitness)/len(players_fitness))
-        self.num_genes += 1
-        
-        generations_data_file = open('generations_data.obj', 'wb') 
-        pickle.dump(generations_data, generations_data_file)
-        generations_data_file.close()
 
-        # num_players example: 100
-        # players: an array of `Player` objects
+        # # TODO
+        # # num_players example: 100
+        # # players: an array of `Player` objects
         # return players[: num_players]
-        # a selection method other than `top-k`
+        # TODO (additional): a selection method other than `top-k`
         return self.roulette_wheel_selection(players, num_players)
-        
+        # TODO (additional): plotting
+
         
 
     
